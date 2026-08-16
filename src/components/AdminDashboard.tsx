@@ -24,7 +24,8 @@ import {
   Check,
   Flame,
   CornerDownRight,
-  Edit3
+  Edit3,
+  UserX
 } from "lucide-react";
 import { Game, Participant, Buzz, GameStatus, GameType, BuzzerStatus } from "../types";
 import { db } from "../lib/firebase";
@@ -244,6 +245,34 @@ export default function AdminDashboard({ onNavigate }: Props) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showVerifyModal, recentBuzzes, selectedBuzzId, showCreateModal, activeGame, participants]);
+
+  // Eliminate a participant: delete their Firestore doc + all their buzzes.
+  // The participant's onSnapshot listener will fire with no document → they are
+  // automatically redirected to /join on their device.
+  const handleEliminateParticipant = async (participantId: string, participantName: string) => {
+    if (!confirm(`Eliminate "${participantName}" from the game? This cannot be undone.`)) return;
+    try {
+      // Delete all buzzes belonging to this participant
+      if (activeGame) {
+        const buzzQuery = query(
+          collection(db, "buzzes"),
+          where("gameId", "==", activeGame.id),
+          where("participantId", "==", participantId)
+        );
+        const buzzSnap = await getDocs(buzzQuery);
+        const batch = writeBatch(db);
+        buzzSnap.docs.forEach(d => batch.delete(d.ref));
+        // Delete participant document
+        batch.delete(doc(db, "participants", participantId));
+        await batch.commit();
+      } else {
+        await deleteDoc(doc(db, "participants", participantId));
+      }
+    } catch (err) {
+      console.error("Error eliminating participant:", err);
+      alert("Failed to eliminate participant. Please try again.");
+    }
+  };
 
   useEffect(() => {
     // Auth Check
@@ -1108,11 +1137,24 @@ export default function AdminDashboard({ onNavigate }: Props) {
                       </div>
                     </div>
 
+                    {/* Score + Response Time info */}
                     <div className={`font-display font-black italic text-lg md:text-xl tracking-tighter shrink-0 ${
                       isTop1 ? "text-[#FBBC05]" : isTop2 ? "text-slate-200" : isTop3 ? "text-amber-300" : "text-white"
                     }`}>
                       {p.score}
                     </div>
+
+                    {/* Eliminate button — visible on row hover */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEliminateParticipant(p.id, p.name);
+                      }}
+                      title={`Eliminate ${p.name}`}
+                      className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 w-7 h-7 rounded-lg bg-red-950/60 hover:bg-red-600 border border-red-900/50 hover:border-red-500 flex items-center justify-center text-red-400 hover:text-white shrink-0"
+                    >
+                      <UserX size={13} />
+                    </button>
                   </div>
                 );
               })}
