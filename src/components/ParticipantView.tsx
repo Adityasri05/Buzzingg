@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Lock, Zap, Award, Trophy, Loader2, Activity, CheckCircle2, XCircle } from "lucide-react";
+import { Lock, Zap, Award, Trophy, Loader2, Activity, CheckCircle2, XCircle, Clock } from "lucide-react";
 import confetti from "canvas-confetti";
 import { Participant, Game, GameStatus, BuzzerStatus, Buzz } from "../types";
 import { socket } from "../lib/socket";
 import { db } from "../lib/firebase";
 import { doc, onSnapshot, query, where, collection, addDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { toMs, getEffectiveResponseTime, formatResponseTimeMs } from "../utils/formatTime";
 
 interface Props {
   participant: Participant | null;
@@ -342,9 +343,10 @@ export default function ParticipantView({ participant: initialParticipant, onNav
                       </div>
                     </div>
                   </div>
-                  <p className="text-slate-500 font-mono text-[10px] mt-2 tracking-[0.2em] uppercase">
-                    Response Time: {displayTime.toFixed(3)}s
-                  </p>
+                  <div className="flex items-center gap-2 bg-[#141414] border border-[#222] px-4 py-2 rounded-2xl font-mono text-xs text-slate-300 shadow-lg mt-2">
+                    <Clock size={14} className="text-[#34A853]" />
+                    <span>Response Time: <strong className="text-white font-bold">{formatResponseTimeMs(displayTime).fullStr}</strong></span>
+                  </div>
                 </motion.div>
               ) : status === "INCORRECT" && buzzResult ? (
                 <motion.div
@@ -364,9 +366,10 @@ export default function ParticipantView({ participant: initialParticipant, onNav
                       Question Passed to Next
                     </div>
                   </div>
-                  <p className="text-slate-600 font-mono text-[10px] mt-2 tracking-[0.2em] uppercase">
-                    Response Time: {displayTime.toFixed(3)}s
-                  </p>
+                  <div className="flex items-center gap-2 bg-[#141414] border border-[#222] px-4 py-2 rounded-2xl font-mono text-xs text-slate-400 shadow-lg mt-2">
+                    <Clock size={14} className="text-red-400" />
+                    <span>Response Time: <strong className="text-slate-200 font-bold">{formatResponseTimeMs(displayTime).fullStr}</strong></span>
+                  </div>
                 </motion.div>
               ) : status === "DONE" && buzzResult ? (
                 <motion.div
@@ -388,9 +391,10 @@ export default function ParticipantView({ participant: initialParticipant, onNav
                       </div>
                     </div>
                   </div>
-                  <p className="text-[#555] font-mono text-[11px] mt-4 tracking-[0.2em] uppercase">
-                    Response Time: {displayTime.toFixed(3)}s
-                  </p>
+                  <div className="flex items-center gap-2 bg-[#141414] border border-[#222] px-4 py-2 rounded-2xl font-mono text-xs text-slate-400 shadow-lg mt-4">
+                    <Clock size={14} className="text-[#FBBC05]" />
+                    <span>Response Time: <strong className="text-white font-bold">{formatResponseTimeMs(displayTime).fullStr}</strong></span>
+                  </div>
                 </motion.div>
               ) : (
                 <div className="relative w-full flex justify-center items-center">

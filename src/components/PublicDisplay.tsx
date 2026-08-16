@@ -6,6 +6,7 @@ import { db } from "../lib/firebase";
 import { socket } from "../lib/socket";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { QRCodeSVG } from "qrcode.react";
+import { formatResponseTimeMs } from "../utils/formatTime";
 
 interface Props {
   onNavigate: (path: string) => void;
@@ -263,7 +264,7 @@ export default function PublicDisplay({ onNavigate }: Props) {
             {firstBuzzer && (
               <div className="px-4 py-1.5 bg-[#141414] border border-[#262626] rounded-full text-xs font-mono font-bold text-[#FBBC05] flex items-center gap-2">
                 <Flame size={14} />
-                <span>Response: {(firstBuzzer.responseTime ?? 0).toFixed(3)}s</span>
+                <span>Response: {formatResponseTimeMs(firstBuzzer.responseTime).fullStr}</span>
               </div>
             )}
           </div>
@@ -331,7 +332,7 @@ export default function PublicDisplay({ onNavigate }: Props) {
                       <div className="flex items-center gap-2">
                         <Clock size={16} className={activeBuzzer.status === 'CORRECT' ? "text-black/70" : "text-slate-500"} />
                         <span className="font-mono text-sm md:text-base font-bold">
-                          Latency: {(activeBuzzer.responseTime ?? 0).toFixed(3)}s
+                          Response Time: {formatResponseTimeMs(activeBuzzer.responseTime).fullStr}
                         </span>
                       </div>
                       <div className="h-4 w-px bg-current opacity-20" />
@@ -415,8 +416,8 @@ export default function PublicDisplay({ onNavigate }: Props) {
                             {buzz.participantName}
                           </p>
                           <div className="flex items-center gap-3 text-[10px] font-mono text-[#666] mt-0.5">
-                            <span>{(buzz.responseTime ?? 0).toFixed(3)}s</span>
-                            <span className="text-red-400">+{delta.toFixed(3)}s</span>
+                            <span>{formatResponseTimeMs(buzz.responseTime).fullStr}</span>
+                            <span className="text-red-400">+{formatResponseTimeMs(delta).msStr}</span>
                             {isActive && (
                               <span className="px-2 py-0.5 bg-white text-black text-[9px] font-bold rounded uppercase">
                                 Active

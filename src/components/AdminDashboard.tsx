@@ -47,6 +47,7 @@ import {
 } from "firebase/firestore";
 import { socket } from "../lib/socket";
 import { QRCodeSVG } from "qrcode.react";
+import { toMs, getEffectiveResponseTime, formatResponseTimeMs } from "../utils/formatTime";
 
 interface Props {
   onNavigate: (path: string) => void;
@@ -859,7 +860,7 @@ export default function AdminDashboard({ onNavigate }: Props) {
                                 {activeBuzz.status === 'CORRECT' ? 'Verified Correct' : `Active Answerer • #${activeBuzzPosition}`}
                               </span>
                               <span className="text-[10px] font-mono font-bold opacity-60">
-                                ({(activeBuzz.responseTime ?? 0).toFixed(3)}s)
+                                ({formatResponseTimeMs(activeBuzz.responseTime).fullStr})
                               </span>
                             </div>
                             <h4 className="text-xl sm:text-2xl font-display font-black italic tracking-tighter uppercase leading-none">
@@ -1019,20 +1020,20 @@ export default function AdminDashboard({ onNavigate }: Props) {
                                 </span>
                               </div>
                               <div className="flex items-center gap-4 mt-3">
-                                <div className="flex flex-col">
-                                  <span className={`text-[8px] font-black uppercase tracking-widest ${isActive ? "text-slate-400" : "text-[#333]"}`}>Arrival</span>
-                                  <span className={`font-mono text-xs md:text-sm font-bold ${isActive ? "text-slate-600" : "text-[#555]"}`}>
-                                    {(buzz.responseTime ?? 0).toFixed(3)}s
-                                  </span>
-                                </div>
-                                {idx > 0 && (
                                   <div className="flex flex-col">
-                                    <span className="text-[8px] font-black uppercase tracking-widest text-red-900/50">Delta</span>
-                                    <span className="font-mono text-xs md:text-sm font-bold text-red-500">
-                                      +{Math.max(0, (buzz.responseTime ?? 0) - (recentBuzzes[0]?.responseTime ?? 0)).toFixed(3)}s
+                                    <span className={`text-[8px] font-black uppercase tracking-widest ${isActive ? "text-slate-400" : "text-[#333]"}`}>Arrival</span>
+                                    <span className={`font-mono text-xs md:text-sm font-bold ${isActive ? "text-slate-600" : "text-[#555]"}`}>
+                                      {formatResponseTimeMs(buzz.responseTime).fullStr}
                                     </span>
                                   </div>
-                                )}
+                                  {idx > 0 && (
+                                    <div className="flex flex-col">
+                                      <span className="text-[8px] font-black uppercase tracking-widest text-red-900/50">Delta</span>
+                                      <span className="font-mono text-xs md:text-sm font-bold text-red-500">
+                                        +{formatResponseTimeMs(Math.max(0, (buzz.responseTime ?? 0) - (recentBuzzes[0]?.responseTime ?? 0))).msStr}
+                                      </span>
+                                    </div>
+                                  )}
                                 
                                 {/* Status Badge */}
                                 {isWinner && (
@@ -1138,7 +1139,7 @@ export default function AdminDashboard({ onNavigate }: Props) {
                                 <span className={`text-[10px] font-mono font-bold flex items-center gap-0.5 ${
                                   buzz.status === "CORRECT" ? "text-emerald-400" : buzz.status === "INCORRECT" ? "text-red-400 line-through" : "text-white"
                                 }`}>
-                                  • ⚡ {(buzz.responseTime ?? 0).toFixed(3)}s
+                                  • ⚡ {formatResponseTimeMs(buzz.responseTime).fullStr}
                                 </span>
                               );
                             }
@@ -1298,7 +1299,7 @@ export default function AdminDashboard({ onNavigate }: Props) {
                         </div>
                         <div className="flex items-center gap-2 text-xs font-mono text-[#888]">
                           <Clock size={13} className="text-[#666]" />
-                          <span>Latency: {(currentBuzz.responseTime ?? 0).toFixed(3)}s</span>
+                          <span>Response Time: {formatResponseTimeMs(currentBuzz.responseTime).fullStr}</span>
                         </div>
                       </div>
 
@@ -1330,7 +1331,7 @@ export default function AdminDashboard({ onNavigate }: Props) {
                             <span>Next in line if passed: <strong className="text-slate-300 font-bold uppercase">{nextCandidate.participantName}</strong></span>
                           </span>
                           <span className="font-mono text-[11px] text-[#666]">
-                            +{Math.max(0, (nextCandidate.responseTime ?? 0) - (currentBuzz.responseTime ?? 0)).toFixed(3)}s
+                            +{formatResponseTimeMs(Math.max(0, (nextCandidate.responseTime ?? 0) - (currentBuzz.responseTime ?? 0))).msStr}
                           </span>
                         </div>
                       )}
@@ -1422,7 +1423,7 @@ export default function AdminDashboard({ onNavigate }: Props) {
                               >
                                 <div className="flex items-center justify-between text-[9px] font-bold uppercase mb-1">
                                   <span>#{bIdx + 1}</span>
-                                  <span>{(b.responseTime ?? 0).toFixed(2)}s</span>
+                                  <span>{formatResponseTimeMs(b.responseTime).fullStr}</span>
                                 </div>
                                 <div className="font-black text-xs uppercase tracking-tight italic truncate">
                                   {b.participantName}
