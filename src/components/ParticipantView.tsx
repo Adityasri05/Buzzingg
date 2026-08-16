@@ -323,11 +323,11 @@ export default function ParticipantView({ participant: initialParticipant, onNav
                   className="flex flex-col items-center gap-6 text-center"
                 >
                   <div className="text-[100px] md:text-[140px] leading-none mb-4 select-none drop-shadow-[0_0_40px_rgba(255,255,255,0.1)]">
-                     {buzzResult.position === 1 ? "🥇" : buzzResult.position === 2 ? "🥈" : buzzResult.position === 3 ? "🥉" : "🎯"}
+                     ⚡
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-4xl md:text-5xl font-display font-black text-white uppercase italic tracking-tighter leading-none">
-                      {buzzResult.position === 1 ? "1st Place" : `${buzzResult.position}${buzzResult.position === 2 ? "nd" : buzzResult.position === 3 ? "rd" : "th"}`}
+                      Buzzed In!
                     </h3>
                     <div className="flex items-center justify-center gap-2">
                       <div className="px-4 py-1.5 bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 font-black text-sm italic tracking-tight uppercase rounded-lg animate-pulse">
