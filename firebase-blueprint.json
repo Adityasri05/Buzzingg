@@ -1,0 +1,40 @@
+{
+  "collections": {
+    "admins": {
+      "username": { "type": "string" },
+      "passwordHash": { "type": "string" }
+    },
+    "games": {
+      "gameCode": { "type": "string" },
+      "organization": { "type": "string" },
+      "gameType": { "type": "string" },
+      "status": { "type": "string" },
+      "currentRound": { "type": "number" },
+      "currentQuestion": { "type": "number" },
+      "totalRounds": { "type": "number" },
+      "buzzerStatus": { "type": "string" },
+      "createdAt": { "type": "timestamp" },
+      "startedAt": { "type": "timestamp", "optional": true },
+      "endedAt": { "type": "timestamp", "optional": true }
+    },
+    "participants": {
+      "gameId": { "type": "string" },
+      "name": { "type": "string" },
+      "score": { "type": "number" },
+      "roundScore": { "type": "number" },
+      "status": { "type": "string" },
+      "joinedAt": { "type": "timestamp" }
+    },
+    "buzzes": {
+      "gameId": { "type": "string" },
+      "roundNumber": { "type": "number" },
+      "questionNumber": { "type": "number" },
+      "participantId": { "type": "string" },
+      "participantName": { "type": "string" },
+      "serverTimestamp": { "type": "timestamp" },
+      "position": { "type": "number" },
+      "pointsAwarded": { "type": "number" },
+      "responseTime": { "type": "number" }
+    }
+  }
+}
