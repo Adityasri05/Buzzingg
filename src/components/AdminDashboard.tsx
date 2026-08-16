@@ -136,11 +136,9 @@ export default function AdminDashboard({ onNavigate }: Props) {
     
     const prevStatus = buzz.status;
     
-    // Dynamically calculate rank/points based on current sorted recentBuzzes list
-    const rank = recentBuzzes.findIndex(b => b.id === buzz.id) + 1;
-    const pointsMap: Record<number, number> = { 1: 10, 2: 7, 3: 5, 4: 3, 5: 2 };
-    const pts = pointsMap[rank] || 0;
-    const penalty = 5;
+    // Points system: +10 for correct, -3 penalty for incorrect
+    const pts = 10;
+    const penalty = 3;
     const eligibleBuzzes = recentBuzzes.filter(b => b.id !== buzz.id && b.status !== "INCORRECT");
     const nextBuzz = eligibleBuzzes[0] || null;
 
