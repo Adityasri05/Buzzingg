@@ -327,7 +327,7 @@ export default function ParticipantView({ participant: initialParticipant, onNav
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-4xl md:text-5xl font-display font-black text-white uppercase italic tracking-tighter leading-none">
-                      Buzzed In!
+                      Done
                     </h3>
                     <div className="flex items-center justify-center gap-2">
                       <div className="px-4 py-1.5 bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 font-black text-sm italic tracking-tight uppercase rounded-lg animate-pulse">
