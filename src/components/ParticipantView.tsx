@@ -18,6 +18,10 @@ export default function ParticipantView({ participant: initialParticipant, onNav
   const [game, setGame] = useState<Game | null>(null);
   const [buzzResult, setBuzzResult] = useState<Buzz | null>(null);
   const [status, setStatus] = useState<"WAITING" | "READY" | "SUBMITTING" | "DONE" | "CORRECT" | "INCORRECT">("WAITING");
+  // localClickMs: captured at the exact moment the button is pressed (for immediate display).
+  // Once Firestore resolves buzzedAt, buzzResult.responseTime takes over for accurate server time.
+  const [localClickMs, setLocalClickMs] = useState<number | null>(null);
+  const [localStartMs, setLocalStartMs] = useState<number | null>(null);
 
   useEffect(() => {
     if (!initialParticipant) {
@@ -161,9 +165,38 @@ export default function ParticipantView({ participant: initialParticipant, onNav
     return null;
   }
 
+  // Helper: parse any Firestore timestamp to ms
+  const toMs = (val: any): number => {
+    if (!val) return 0;
+    if (typeof val.toMillis === "function") return val.toMillis();
+    if (typeof val.toDate === "function") return val.toDate().getTime();
+    if (val.seconds) return val.seconds * 1000;
+    if (val instanceof Date) return val.getTime();
+    const p = new Date(val).getTime();
+    return isNaN(p) ? 0 : p;
+  };
+
+  // displayTime: best available response time in seconds for showing to user.
+  // Prefers server-computed value from Firestore (accurate); falls back to local clock estimate.
+  const displayTime = (() => {
+    const serverTime = buzzResult?.responseTime ?? 0;
+    if (serverTime > 0) return serverTime;
+    // Fallback: use local click time (for the brief window before Firestore resolves)
+    if (localClickMs !== null && localStartMs !== null) {
+      return Math.max(0, (localClickMs - localStartMs) / 1000);
+    }
+    return 0;
+  })();
+
   const handleBuzz = async () => {
     if (status !== "READY" || !game || !participant) return;
-    
+
+    // Capture exact click time locally for immediate display while Firestore resolves
+    const nowMs = Date.now();
+    const startMs = toMs(game.startedAt);
+    setLocalClickMs(nowMs);
+    setLocalStartMs(startMs > 0 ? startMs : nowMs);
+
     setStatus("SUBMITTING");
 
     if ("vibrate" in navigator) {
@@ -171,10 +204,10 @@ export default function ParticipantView({ participant: initialParticipant, onNav
     }
 
     try {
-      // Submit buzz record — responseTime is calculated server-side from
-      // Firestore timestamps to eliminate all client clock-skew bias.
-      // buzzedAt = serverTimestamp() (Firestore server time of arrival)
-      // True responseTime = buzzedAt - game.startedAt (both Firestore server times)
+      // buzzedAt: serverTimestamp() — Firestore records the exact server arrival time.
+      // This is used for unbiased ranking (not subject to device clock skew).
+      // responseTime field starts as 0; it is recalculated in the buzz listener
+      // using (buzzedAt - game.startedAt) once Firestore resolves both timestamps.
       await addDoc(collection(db, "buzzes"), {
         gameId: game.id,
         roundNumber: game.currentRound || 1,
@@ -185,14 +218,14 @@ export default function ParticipantView({ participant: initialParticipant, onNav
         buzzedAt: serverTimestamp(),
         position: 1,
         pointsAwarded: 0,
-        responseTime: 0, // Will be recalculated server-side from Firestore timestamps
+        responseTime: 0,
         status: "PENDING"
       });
 
-      // 2. Lock the buzzer locally/globally in the game document
+      // Lock the buzzer so no other participant can buzz in
       const gameRef = doc(db, "games", game.id);
-      await updateDoc(gameRef, { 
-        buzzerStatus: BuzzerStatus.CLOSED 
+      await updateDoc(gameRef, {
+        buzzerStatus: BuzzerStatus.CLOSED
       });
 
     } catch (err) {
@@ -300,7 +333,7 @@ export default function ParticipantView({ participant: initialParticipant, onNav
                     </div>
                   </div>
                   <p className="text-slate-500 font-mono text-[10px] mt-2 tracking-[0.2em] uppercase">
-                    Latency: {(buzzResult.responseTime ?? 0).toFixed(3)}s
+                    Response Time: {displayTime.toFixed(3)}s
                   </p>
                 </motion.div>
               ) : status === "INCORRECT" && buzzResult ? (
@@ -322,7 +355,7 @@ export default function ParticipantView({ participant: initialParticipant, onNav
                     </div>
                   </div>
                   <p className="text-slate-600 font-mono text-[10px] mt-2 tracking-[0.2em] uppercase">
-                    Latency: {(buzzResult.responseTime ?? 0).toFixed(3)}s
+                    Response Time: {displayTime.toFixed(3)}s
                   </p>
                 </motion.div>
               ) : status === "DONE" && buzzResult ? (
@@ -345,8 +378,8 @@ export default function ParticipantView({ participant: initialParticipant, onNav
                       </div>
                     </div>
                   </div>
-                  <p className="text-[#333] font-mono text-[9px] mt-4 tracking-[0.2em] uppercase">
-                    Latency: {(buzzResult.responseTime ?? 0).toFixed(3)}s
+                  <p className="text-[#555] font-mono text-[11px] mt-4 tracking-[0.2em] uppercase">
+                    Response Time: {displayTime.toFixed(3)}s
                   </p>
                 </motion.div>
               ) : (
