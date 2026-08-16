@@ -339,15 +339,44 @@ export default function AdminDashboard({ onNavigate }: Props) {
     );
     const unsubB = onSnapshot(bQuery, (snapshot) => {
       const currentQ = activeGame.currentQuestion || 1;
+
+      // Parse Firestore timestamp to milliseconds
+      const toMs = (val: any): number => {
+        if (!val) return 0;
+        if (typeof val.toMillis === "function") return val.toMillis();
+        if (typeof val.toDate === "function") return val.toDate().getTime();
+        if (val.seconds) return val.seconds * 1000;
+        if (val instanceof Date) return val.getTime();
+        const p = new Date(val).getTime();
+        return isNaN(p) ? 0 : p;
+      };
+
+      const startedAtMs = toMs(activeGame.startedAt);
+
       const bList = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Buzz))
+        .map(doc => {
+          const data = doc.data() as Buzz;
+          // Use Firestore server timestamps (buzzedAt or serverTimestamp) to calculate
+          // unbiased response time — eliminates all client device clock-skew
+          const buzzedAtMs = toMs(data.buzzedAt || data.serverTimestamp);
+          const serverResponseTime = startedAtMs > 0 && buzzedAtMs > 0
+            ? Math.max(0, (buzzedAtMs - startedAtMs) / 1000)
+            : (Number(data.responseTime) || 0);
+          return { 
+            id: doc.id, 
+            ...data, 
+            responseTime: serverResponseTime 
+          } as Buzz;
+        })
         .filter(b => (b.questionNumber || 1) === currentQ)
         .sort((a, b) => {
+          // Primary: server-computed response time (unbiased)
           const rA = Number(a.responseTime) || 0;
           const rB = Number(b.responseTime) || 0;
-          if (rA !== rB) return rA - rB;
-          const tA = a.serverTimestamp ? (typeof a.serverTimestamp.toMillis === "function" ? a.serverTimestamp.toMillis() : new Date(a.serverTimestamp).getTime()) : 0;
-          const tB = b.serverTimestamp ? (typeof b.serverTimestamp.toMillis === "function" ? b.serverTimestamp.toMillis() : new Date(b.serverTimestamp).getTime()) : 0;
+          if (Math.abs(rA - rB) > 0.001) return rA - rB;
+          // Tiebreaker: raw Firestore server arrival time
+          const tA = toMs(a.buzzedAt || a.serverTimestamp);
+          const tB = toMs(b.buzzedAt || b.serverTimestamp);
           return tA - tB || a.id.localeCompare(b.id);
         });
       setRecentBuzzes(bList);

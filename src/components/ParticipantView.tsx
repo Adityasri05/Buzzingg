@@ -73,15 +73,37 @@ export default function ParticipantView({ participant: initialParticipant, onNav
 
     const unsubB = onSnapshot(bQuery, (snapshot) => {
       const currentQ = game.currentQuestion || 1;
+
+      // Parse Firestore timestamp helper
+      const toMs = (val: any): number => {
+        if (!val) return 0;
+        if (typeof val.toMillis === "function") return val.toMillis();
+        if (typeof val.toDate === "function") return val.toDate().getTime();
+        if (val.seconds) return val.seconds * 1000;
+        if (val instanceof Date) return val.getTime();
+        const p = new Date(val).getTime();
+        return isNaN(p) ? 0 : p;
+      };
+
+      const startedAtMs = toMs(game.startedAt);
+
       const questionBuzzDocs = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Buzz))
+        .map(doc => {
+          const data = doc.data() as Buzz;
+          // Calculate unbiased responseTime from Firestore server timestamps only
+          const buzzedAtMs = toMs(data.buzzedAt || data.serverTimestamp);
+          const serverResponseTime = startedAtMs > 0 && buzzedAtMs > 0
+            ? Math.max(0, (buzzedAtMs - startedAtMs) / 1000)
+            : (Number(data.responseTime) || 0);
+          return { id: doc.id, ...data, responseTime: serverResponseTime } as Buzz;
+        })
         .filter(b => (b.questionNumber || 1) === currentQ)
         .sort((a, b) => {
           const rA = Number(a.responseTime) || 0;
           const rB = Number(b.responseTime) || 0;
-          if (rA !== rB) return rA - rB;
-          const tA = a.serverTimestamp ? (typeof a.serverTimestamp.toMillis === "function" ? a.serverTimestamp.toMillis() : new Date(a.serverTimestamp).getTime()) : 0;
-          const tB = b.serverTimestamp ? (typeof b.serverTimestamp.toMillis === "function" ? b.serverTimestamp.toMillis() : new Date(b.serverTimestamp).getTime()) : 0;
+          if (Math.abs(rA - rB) > 0.001) return rA - rB;
+          const tA = toMs(a.buzzedAt || a.serverTimestamp);
+          const tB = toMs(b.buzzedAt || b.serverTimestamp);
           return tA - tB || a.id.localeCompare(b.id);
         });
 
@@ -149,23 +171,10 @@ export default function ParticipantView({ participant: initialParticipant, onNav
     }
 
     try {
-      const serverTimestampNow = Date.now();
-      let startTimeMs = serverTimestampNow;
-      if (game.startedAt) {
-        if (typeof (game.startedAt as any).toDate === "function") {
-          startTimeMs = (game.startedAt as any).toDate().getTime();
-        } else if (typeof (game.startedAt as any).seconds === "number") {
-          startTimeMs = (game.startedAt as any).seconds * 1000;
-        } else if (game.startedAt instanceof Date) {
-          startTimeMs = game.startedAt.getTime();
-        } else {
-          const parsed = new Date(game.startedAt as any).getTime();
-          if (!isNaN(parsed)) startTimeMs = parsed;
-        }
-      }
-      const responseTime = (serverTimestampNow - startTimeMs) / 1000;
-
-      // 1. Submit buzz record directly to Firestore
+      // Submit buzz record — responseTime is calculated server-side from
+      // Firestore timestamps to eliminate all client clock-skew bias.
+      // buzzedAt = serverTimestamp() (Firestore server time of arrival)
+      // True responseTime = buzzedAt - game.startedAt (both Firestore server times)
       await addDoc(collection(db, "buzzes"), {
         gameId: game.id,
         roundNumber: game.currentRound || 1,
@@ -173,9 +182,10 @@ export default function ParticipantView({ participant: initialParticipant, onNav
         participantId: participant.id,
         participantName: participant.name,
         serverTimestamp: serverTimestamp(),
-        position: 1, 
+        buzzedAt: serverTimestamp(),
+        position: 1,
         pointsAwarded: 0,
-        responseTime: responseTime < 0 ? 0 : responseTime,
+        responseTime: 0, // Will be recalculated server-side from Firestore timestamps
         status: "PENDING"
       });
 

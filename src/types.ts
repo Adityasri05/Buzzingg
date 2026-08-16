@@ -52,10 +52,11 @@ export interface Buzz {
   questionNumber: number;
   participantId: string;
   participantName: string;
-  serverTimestamp: number;
+  serverTimestamp: any;
+  buzzedAt?: any;       // Firestore serverTimestamp of buzz arrival — used for unbiased responseTime
   position: number;
   pointsAwarded: number;
-  responseTime: number;
+  responseTime: number; // Recalculated client-side from buzzedAt - game.startedAt (both server timestamps)
   status?: 'PENDING' | 'CORRECT' | 'INCORRECT';
 }
 
