@@ -73,15 +73,24 @@ export default function ParticipantView({ participant: initialParticipant, onNav
 
     const unsubB = onSnapshot(bQuery, (snapshot) => {
       const currentQ = game.currentQuestion || 1;
-      const questionBuzzDocs = snapshot.docs.filter(d => {
-        const data = d.data();
-        return (data.questionNumber || 1) === currentQ;
-      });
+      const questionBuzzDocs = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Buzz))
+        .filter(b => (b.questionNumber || 1) === currentQ)
+        .sort((a, b) => {
+          const rA = Number(a.responseTime) || 0;
+          const rB = Number(b.responseTime) || 0;
+          if (rA !== rB) return rA - rB;
+          const tA = a.serverTimestamp ? (typeof a.serverTimestamp.toMillis === "function" ? a.serverTimestamp.toMillis() : new Date(a.serverTimestamp).getTime()) : 0;
+          const tB = b.serverTimestamp ? (typeof b.serverTimestamp.toMillis === "function" ? b.serverTimestamp.toMillis() : new Date(b.serverTimestamp).getTime()) : 0;
+          return tA - tB || a.id.localeCompare(b.id);
+        });
 
-      const myBuzzDoc = questionBuzzDocs.find(d => d.data().participantId === initialParticipant.id);
-      if (myBuzzDoc) {
-        const myBuzz = { id: myBuzzDoc.id, ...myBuzzDoc.data() } as Buzz;
-        setBuzzResult(myBuzz);
+      const myIndex = questionBuzzDocs.findIndex(b => b.participantId === initialParticipant.id);
+      if (myIndex !== -1) {
+        const myBuzz = questionBuzzDocs[myIndex];
+        const dynamicPosition = myIndex + 1;
+        const updatedBuzz = { ...myBuzz, position: dynamicPosition };
+        setBuzzResult(updatedBuzz);
         if (myBuzz.status === "CORRECT") {
           setStatus("CORRECT");
         } else if (myBuzz.status === "INCORRECT") {

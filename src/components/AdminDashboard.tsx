@@ -767,6 +767,8 @@ export default function AdminDashboard({ onNavigate }: Props) {
                 const pendingBuzzes = recentBuzzes.filter(b => b.status !== "INCORRECT");
                 const activeBuzz = (selectedBuzzId ? recentBuzzes.find(b => b.id === selectedBuzzId) : null) || pendingBuzzes[0] || null;
                 const nextBuzzInLine = pendingBuzzes.length > 1 ? pendingBuzzes[1] : null;
+                const activeBuzzIndex = activeBuzz ? recentBuzzes.findIndex(b => b.id === activeBuzz.id) : -1;
+                const activeBuzzPosition = activeBuzzIndex !== -1 ? activeBuzzIndex + 1 : 1;
 
                 if (activeBuzz) {
                   return (
@@ -787,7 +789,7 @@ export default function AdminDashboard({ onNavigate }: Props) {
                             <div className="flex items-center gap-2">
                               <span className={`w-2 h-2 rounded-full ${activeBuzz.status === 'CORRECT' ? "bg-black" : "bg-[#EA4335] animate-ping"}`} />
                               <span className="text-[8px] font-black uppercase tracking-[0.2em] opacity-60">
-                                {activeBuzz.status === 'CORRECT' ? 'Verified Correct' : `Active Answerer • #${activeBuzz.position || 1}`}
+                                {activeBuzz.status === 'CORRECT' ? 'Verified Correct' : `Active Answerer • #${activeBuzzPosition}`}
                               </span>
                               <span className="text-[10px] font-mono font-bold opacity-60">
                                 ({(activeBuzz.responseTime ?? 0).toFixed(3)}s)
