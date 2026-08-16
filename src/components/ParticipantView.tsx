@@ -81,6 +81,7 @@ export default function ParticipantView({ participant: initialParticipant, onNav
       // Parse Firestore timestamp helper
       const toMs = (val: any): number => {
         if (!val) return 0;
+        if (typeof val === "number" && !isNaN(val)) return val;
         if (typeof val.toMillis === "function") return val.toMillis();
         if (typeof val.toDate === "function") return val.toDate().getTime();
         if (val.seconds) return val.seconds * 1000;
@@ -91,23 +92,31 @@ export default function ParticipantView({ participant: initialParticipant, onNav
 
       const startedAtMs = toMs(game.startedAt);
 
+      const getEffectiveResponseTime = (data: Buzz): number => {
+        const buzzedAtMs = toMs(data.buzzedAt || data.serverTimestamp || (data as any).clientTimestamp);
+        if (startedAtMs > 0 && buzzedAtMs > 0 && buzzedAtMs >= startedAtMs) {
+          const delta = (buzzedAtMs - startedAtMs) / 1000;
+          if (delta > 0) return delta;
+        }
+        if (typeof data.responseTime === "number" && data.responseTime > 0) {
+          return data.responseTime;
+        }
+        return 0.150;
+      };
+
       const questionBuzzDocs = snapshot.docs
         .map(doc => {
           const data = doc.data() as Buzz;
-          // Calculate unbiased responseTime from Firestore server timestamps only
-          const buzzedAtMs = toMs(data.buzzedAt || data.serverTimestamp);
-          const serverResponseTime = startedAtMs > 0 && buzzedAtMs > 0
-            ? Math.max(0, (buzzedAtMs - startedAtMs) / 1000)
-            : (Number(data.responseTime) || 0);
-          return { id: doc.id, ...data, responseTime: serverResponseTime } as Buzz;
+          const effectiveResponseTime = getEffectiveResponseTime(data);
+          return { id: doc.id, ...data, responseTime: effectiveResponseTime } as Buzz;
         })
         .filter(b => (b.questionNumber || 1) === currentQ)
         .sort((a, b) => {
           const rA = Number(a.responseTime) || 0;
           const rB = Number(b.responseTime) || 0;
           if (Math.abs(rA - rB) > 0.001) return rA - rB;
-          const tA = toMs(a.buzzedAt || a.serverTimestamp);
-          const tB = toMs(b.buzzedAt || b.serverTimestamp);
+          const tA = toMs(a.buzzedAt || a.serverTimestamp || (a as any).clientTimestamp);
+          const tB = toMs(b.buzzedAt || b.serverTimestamp || (b as any).clientTimestamp);
           return tA - tB || a.id.localeCompare(b.id);
         });
 
@@ -168,6 +177,7 @@ export default function ParticipantView({ participant: initialParticipant, onNav
   // Helper: parse any Firestore timestamp to ms
   const toMs = (val: any): number => {
     if (!val) return 0;
+    if (typeof val === "number" && !isNaN(val)) return val;
     if (typeof val.toMillis === "function") return val.toMillis();
     if (typeof val.toDate === "function") return val.toDate().getTime();
     if (val.seconds) return val.seconds * 1000;
@@ -177,15 +187,14 @@ export default function ParticipantView({ participant: initialParticipant, onNav
   };
 
   // displayTime: best available response time in seconds for showing to user.
-  // Prefers server-computed value from Firestore (accurate); falls back to local clock estimate.
   const displayTime = (() => {
     const serverTime = buzzResult?.responseTime ?? 0;
     if (serverTime > 0) return serverTime;
-    // Fallback: use local click time (for the brief window before Firestore resolves)
-    if (localClickMs !== null && localStartMs !== null) {
-      return Math.max(0, (localClickMs - localStartMs) / 1000);
+    if (localClickMs !== null && localStartMs !== null && localClickMs >= localStartMs) {
+      const delta = (localClickMs - localStartMs) / 1000;
+      if (delta > 0) return delta;
     }
-    return 0;
+    return 0.150;
   })();
 
   const handleBuzz = async () => {
@@ -194,8 +203,12 @@ export default function ParticipantView({ participant: initialParticipant, onNav
     // Capture exact click time locally for immediate display while Firestore resolves
     const nowMs = Date.now();
     const startMs = toMs(game.startedAt);
+    const initialResponseTime = (startMs > 0 && nowMs >= startMs)
+      ? Math.max(0.05, (nowMs - startMs) / 1000)
+      : 0.25;
+
     setLocalClickMs(nowMs);
-    setLocalStartMs(startMs > 0 ? startMs : nowMs);
+    setLocalStartMs(startMs > 0 ? startMs : (nowMs - Math.round(initialResponseTime * 1000)));
 
     setStatus("SUBMITTING");
 
@@ -204,10 +217,6 @@ export default function ParticipantView({ participant: initialParticipant, onNav
     }
 
     try {
-      // buzzedAt: serverTimestamp() — Firestore records the exact server arrival time.
-      // This is used for unbiased ranking (not subject to device clock skew).
-      // responseTime field starts as 0; it is recalculated in the buzz listener
-      // using (buzzedAt - game.startedAt) once Firestore resolves both timestamps.
       await addDoc(collection(db, "buzzes"), {
         gameId: game.id,
         roundNumber: game.currentRound || 1,
@@ -216,9 +225,10 @@ export default function ParticipantView({ participant: initialParticipant, onNav
         participantName: participant.name,
         serverTimestamp: serverTimestamp(),
         buzzedAt: serverTimestamp(),
+        clientTimestamp: nowMs,
         position: 1,
         pointsAwarded: 0,
-        responseTime: 0,
+        responseTime: initialResponseTime,
         status: "PENDING"
       });
 

@@ -77,11 +77,48 @@ export default function PublicDisplay({ onNavigate }: Props) {
       collection(db, "buzzes"), 
       where("gameId", "==", activeGame.id)
     );
+
+    const toMs = (val: any): number => {
+      if (!val) return 0;
+      if (typeof val === "number" && !isNaN(val)) return val;
+      if (typeof val.toMillis === "function") return val.toMillis();
+      if (typeof val.toDate === "function") return val.toDate().getTime();
+      if (val.seconds) return val.seconds * 1000;
+      if (val instanceof Date) return val.getTime();
+      const p = new Date(val).getTime();
+      return isNaN(p) ? 0 : p;
+    };
+
+    const startedAtMs = toMs(activeGame.startedAt);
+
+    const getEffectiveResponseTime = (data: Buzz): number => {
+      const buzzedAtMs = toMs(data.buzzedAt || data.serverTimestamp || (data as any).clientTimestamp);
+      if (startedAtMs > 0 && buzzedAtMs > 0 && buzzedAtMs >= startedAtMs) {
+        const delta = (buzzedAtMs - startedAtMs) / 1000;
+        if (delta > 0) return delta;
+      }
+      if (typeof data.responseTime === "number" && data.responseTime > 0) {
+        return data.responseTime;
+      }
+      return 0.150;
+    };
+
     const unsubB = onSnapshot(bQuery, (snapshot) => {
       const bList = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Buzz))
-        .filter(b => b.questionNumber === activeGame.currentQuestion)
-        .sort((a, b) => (a.position || 0) - (b.position || 0))
+        .map(doc => {
+          const data = doc.data() as Buzz;
+          const effectiveResponseTime = getEffectiveResponseTime(data);
+          return { id: doc.id, ...data, responseTime: effectiveResponseTime } as Buzz;
+        })
+        .filter(b => (b.questionNumber || 1) === (activeGame.currentQuestion || 1))
+        .sort((a, b) => {
+          const rA = Number(a.responseTime) || 0;
+          const rB = Number(b.responseTime) || 0;
+          if (Math.abs(rA - rB) > 0.001) return rA - rB;
+          const tA = toMs(a.buzzedAt || a.serverTimestamp || (a as any).clientTimestamp);
+          const tB = toMs(b.buzzedAt || b.serverTimestamp || (b as any).clientTimestamp);
+          return tA - tB || a.id.localeCompare(b.id);
+        })
         .slice(0, 8);
       setRecentBuzzes(bList);
     }, (err) => {

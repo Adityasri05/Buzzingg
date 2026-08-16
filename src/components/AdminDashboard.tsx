@@ -372,6 +372,7 @@ export default function AdminDashboard({ onNavigate }: Props) {
       // Parse Firestore timestamp to milliseconds
       const toMs = (val: any): number => {
         if (!val) return 0;
+        if (typeof val === "number" && !isNaN(val)) return val;
         if (typeof val.toMillis === "function") return val.toMillis();
         if (typeof val.toDate === "function") return val.toDate().getTime();
         if (val.seconds) return val.seconds * 1000;
@@ -382,30 +383,37 @@ export default function AdminDashboard({ onNavigate }: Props) {
 
       const startedAtMs = toMs(activeGame.startedAt);
 
+      const getEffectiveResponseTime = (data: Buzz): number => {
+        const buzzedAtMs = toMs(data.buzzedAt || data.serverTimestamp || (data as any).clientTimestamp);
+        if (startedAtMs > 0 && buzzedAtMs > 0 && buzzedAtMs >= startedAtMs) {
+          const delta = (buzzedAtMs - startedAtMs) / 1000;
+          if (delta > 0) return delta;
+        }
+        if (typeof data.responseTime === "number" && data.responseTime > 0) {
+          return data.responseTime;
+        }
+        return 0.150;
+      };
+
       const bList = snapshot.docs
         .map(doc => {
           const data = doc.data() as Buzz;
-          // Use Firestore server timestamps (buzzedAt or serverTimestamp) to calculate
-          // unbiased response time — eliminates all client device clock-skew
-          const buzzedAtMs = toMs(data.buzzedAt || data.serverTimestamp);
-          const serverResponseTime = startedAtMs > 0 && buzzedAtMs > 0
-            ? Math.max(0, (buzzedAtMs - startedAtMs) / 1000)
-            : (Number(data.responseTime) || 0);
+          const effectiveResponseTime = getEffectiveResponseTime(data);
           return { 
             id: doc.id, 
             ...data, 
-            responseTime: serverResponseTime 
+            responseTime: effectiveResponseTime 
           } as Buzz;
         })
         .filter(b => (b.questionNumber || 1) === currentQ)
         .sort((a, b) => {
-          // Primary: server-computed response time (unbiased)
+          // Primary: effective response time
           const rA = Number(a.responseTime) || 0;
           const rB = Number(b.responseTime) || 0;
           if (Math.abs(rA - rB) > 0.001) return rA - rB;
-          // Tiebreaker: raw Firestore server arrival time
-          const tA = toMs(a.buzzedAt || a.serverTimestamp);
-          const tB = toMs(b.buzzedAt || b.serverTimestamp);
+          // Tiebreaker: raw arrival timestamp
+          const tA = toMs(a.buzzedAt || a.serverTimestamp || (a as any).clientTimestamp);
+          const tB = toMs(b.buzzedAt || b.serverTimestamp || (b as any).clientTimestamp);
           return tA - tB || a.id.localeCompare(b.id);
         });
       setRecentBuzzes(bList);
@@ -426,7 +434,8 @@ export default function AdminDashboard({ onNavigate }: Props) {
         currentRound: 1,
         currentQuestion: 1,
         buzzerStatus: BuzzerStatus.CLOSED,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        startedAt: serverTimestamp()
       };
       const docRef = await addDoc(collection(db, "games"), gameData);
       localStorage.setItem("active_game_id", docRef.id);
@@ -454,18 +463,20 @@ export default function AdminDashboard({ onNavigate }: Props) {
       targetQuestion = Math.max(1, Number(payload?.targetQuestion || payload?.questionNumber || 1));
     }
 
+    const nowMs = Date.now();
+
     // 1. Optimistic state update for instantaneous host feedback
     if (command === "START_GAME") {
-      setActiveGame(prev => prev ? { ...prev, status: GameStatus.ACTIVE, buzzerStatus: BuzzerStatus.OPEN } : null);
+      setActiveGame(prev => prev ? { ...prev, status: GameStatus.ACTIVE, buzzerStatus: BuzzerStatus.OPEN, startedAt: nowMs } : null);
       showToast("Session Engaged • Buzzer Armed");
     } else if (command === "OPEN_BUZZER" || command === "REOPEN_BUZZER") {
-      setActiveGame(prev => prev ? { ...prev, buzzerStatus: BuzzerStatus.OPEN } : null);
+      setActiveGame(prev => prev ? { ...prev, buzzerStatus: BuzzerStatus.OPEN, startedAt: nowMs } : null);
       showToast("Buzzer Open for Contenders");
     } else if (command === "CLOSE_BUZZER") {
       setActiveGame(prev => prev ? { ...prev, buzzerStatus: BuzzerStatus.CLOSED } : null);
       showToast("Buzzer Locked", "info");
     } else if (command === "NEXT_QUESTION" || command === "PREV_QUESTION" || command === "SET_QUESTION") {
-      setActiveGame(prev => prev ? { ...prev, currentQuestion: targetQuestion, buzzerStatus: BuzzerStatus.OPEN } : null);
+      setActiveGame(prev => prev ? { ...prev, currentQuestion: targetQuestion, buzzerStatus: BuzzerStatus.OPEN, startedAt: nowMs } : null);
       setSelectedBuzzId(null);
       showToast(`Question ${targetQuestion} Activated • Buzzer Armed`);
     } else if (command === "END_GAME") {
