@@ -119,7 +119,7 @@ export default function App() {
     if (path === "/") return <LandingPage onNavigate={navigate} />;
     if (path === "/join") return <JoinGame onNavigate={navigate} onJoined={setParticipant} />;
     if (path === "/play") return <ParticipantView participant={participant} onNavigate={navigate} onReset={() => setParticipant(null)} />;
-    if (path === "/admin/login") return <AdminLogin onNavigate={navigate} />;
+    if (path === "/admin/login" || path === "/admin" || path === "/admin/") return <AdminLogin onNavigate={navigate} />;
     if (path === "/admin/dashboard") return <AdminDashboard onNavigate={navigate} />;
     if (path === "/display") return <PublicDisplay onNavigate={navigate} />;
 

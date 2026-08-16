@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { Lock, ShieldCheck, ArrowRight, Loader2, Zap } from "lucide-react";
 
@@ -11,20 +11,27 @@ export default function AdminLogin({ onNavigate }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    const token = localStorage.getItem("admin_token");
+    if (token) {
+      onNavigate("/admin/dashboard");
+    }
+  }, [onNavigate]);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
     setTimeout(() => {
-      if (password === "gdgsrmcem") {
+      if (password.trim().toLowerCase() === "gdgsrmcem") {
         localStorage.setItem("admin_token", "admin-token-buzzingg");
         onNavigate("/admin/dashboard");
       } else {
         setError("Invalid Authorization Key.");
       }
       setLoading(false);
-    }, 800);
+    }, 400);
   };
 
   return (
